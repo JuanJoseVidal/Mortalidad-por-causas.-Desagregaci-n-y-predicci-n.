@@ -1,0 +1,632 @@
+---
+title: "Mortalidad Por Causas"
+author: "Juan José Vidal"
+date: "`r format(Sys.Date(),'%d %B, %Y')`"
+output: pdf_document
+geometry: margin=3cm
+---
+
+```{r, eval=FALSE, include=FALSE}
+#Ejecutar para instalar los paquetes requeridos
+install.packages("demography","graphics","mgcv","knitr","spatstat","cluster")
+#Para utilizar el paquete xlsx se debe tener instalado java, y en el caso de Windows, se requerirá java de 64 bits, no el que aparece inicialmente en la página oficial.
+#Para Mac -> https://www.java.com/es/download/
+#Para Windows(seleccionar el de 64 bits) -> https://www.java.com/es/download/manual.jsp
+
+#En caso de usar una codificación diferente a UTF-8, reabrir el archivo con la codificación UTF-8 para visualizar correctamente los caracteres.
+```
+
+
+```{r, message=FALSE, warning=FALSE, include=FALSE}
+require("demography")#Modelos de Lee-Carter
+require("graphics")#Ayudante de gráficos
+require("mgcv")
+require("knitr") #Complemento para crear pdf, tablas bonitas
+require("spatstat") # "im" function
+require("cluster") #Clustering
+require("mclust")
+require("fpc")
+require("ggplot2") #Ploteos avanzados
+require("reshape2")
+require("som") #Self organized maps
+require("xtable") #Pasar tablas a latex
+```
+
+
+#Extracción de los datos.
+```{r}
+mort.caus <- read.table("mortcaushist.csv",sep=";",header=TRUE)
+superv.larg<-  read.table("supervivientes.csv",sep=";",header=TRUE)
+
+#Hostóricos de España con las edades por año
+sup.spa <- read.table("suphistspa.csv",sep=";",header=TRUE)
+defu.spa <- read.table("morthistspa.csv",sep=";",header=TRUE)
+
+```
+
+Extraemos los datos en matrices por separado, creando la lista de matrices $D$, que alberga en la primera matriz los fallecidos totales y en las siguientes los fallecidos para cada uno de los grupos causales en intervalos de 5 años de edad.
+
+
+```{r, message=FALSE, warning=FALSE, include=FALSE}
+nany <- 28 #numero años en los datos
+nint <- 21 #Número de subintervalos
+ncaus <- 17 #Número de causas en los datos
+D <- list()
+i <- 1
+for(i in 1:ncaus){
+  for(j in 2:8){
+    a <- 2*i+(i-1)*(nint-1)
+    b <- 2*i+i*(nint-1)
+    c <- 2+(nint-1)
+     D[[i]] <- mort.caus[a:b,2:(nany+1)]
+     colnames(D[[i]]) <- colnames(mort.caus)[-1]
+     rownames(D[[i]]) <- mort.caus[2:c,1]
+     D[[i]] <- rev(D[[i]])
+  }
+}
+
+names(D) <- c(paste("D",1:17,sep = ""))
+D.total <- Reduce("+",D)
+
+
+sup <- rev(superv.larg[,-1])
+sup[2,] <- sup[3,] - sup[1,] #Separamos los menores de 1 y entre 1 y 4
+sup[26,] <- sum(sup[22:25,],na.rm = TRUE)  #juntamos los mayores de 95
+sup <- sup[c(-3,-22:-25),] #Eliminamos las columnas que sobran
+rownames(sup) <- rownames(D[[1]])
+colnames(sup) <- colnames(D[[1]])
+
+
+```
+
+#Evolución de la población
+Dibujamos la evolución de la población española.
+
+```{r}
+
+plot(x=c(0,1,seq(5,95,by=5)),y=sup[,nany],xlab = "Edad",ylab = "Población")
+for(i in 1:(nany-1)){
+  lines(c(0,1,seq(5,95,by=5)),sup[,i],col=i)
+  }
+
+```
+
+
+#Evolución de la mortalidad
+Dibujamos la evolución de la mortalidad total.
+
+```{r}
+
+plot(x=c(0,1,seq(5,95,by=5)),y=log(D.total[,nany]),xlab = "Edad",ylab = "log(Defunciones)")
+for(i in 1:(nany-1)){
+  lines(c(0,1,seq(5,95,by=5)),log(D.total[,i]),col=i)
+  }
+
+```
+
+#Probabilidades de cada causa
+
+Creamos la lista $T$ de probabilidades de cada causa suponiendo que ya ha fallecido.
+$$
+T_i^j=P(\text{Fallecer de causa j a la edad i | Ha fallecido})
+$$
+
+```{r}
+
+T <- D #Sólo por generarla
+for (k in 1:ncaus){
+  for (i in 1:nint){
+  for (j in 1:nany){
+    T[[k]][i,j] <- D[[k]][i,j]/D.total[i,j]
+  }
+  }
+}
+```
+
+Observamos que se ha realizado correctamente ya que la suma de todas las probabilidades de cada elemento da 1.
+
+```{r}
+c <- Reduce("+",T)
+
+```
+
+```{r}
+#Creamos la matriz con los fallecimientos totales para cada año y para cada causa
+def.caus.tot <- matrix(0,ncaus,nany)
+for (j in 1:nany){
+for(i in 1:ncaus){
+  def.caus.tot[i,j] <- sum(D[[i]][,j])
+}
+}
+colnames(def.caus.tot) <- colnames(D[[1]])
+
+identical(sum(D.total),sum(def.caus.tot[,]))#Se ha realizado correctamente
+
+
+dotchart(rev(def.caus.tot[,"X2014"]),labels=c(17:1), main="Distribución de defunciones por causas - 2014")
+
+
+
+Lista.causas <- matrix("a",ncaus,2)
+colnames(Lista.causas) = c("Número","Nombre completo")
+for(i in 1:ncaus){
+  Lista.causas[i,1] <- paste("Grupo causal",i)
+  Lista.causas[i,2] <- as.character(mort.caus[(22*(i-1)+1),1])
+}
+
+kable(Lista.causas, caption="Grupos causales",
+      colnames = c("Número","Nombre completo"),
+      align=c("c","l")
+      )
+
+xtable(Lista.causas)
+
+par(mfrow=c(2,2))
+for(i in 1:ncaus){
+ plot(c(1987:2014),def.caus.tot[i,],main=paste("Grupo causal",i),xlab="Años",ylab="Nº defunciones")
+}
+
+
+```
+
+#Agrupación por correlaciones
+
+```{r}
+
+par(mfrow=c(1,1))
+cor.def <- cor(t(def.caus.tot))
+x <- as.character(c(1:17))
+toString(x,width = 17)
+rownames(cor.def) <- as.character(c(1:17))
+colnames(cor.def) <- as.character(c(1:17))
+
+plot(im(cor.def[nrow(cor.def):1,]), main="Correlation Matrix Map")
+
+```
+
+```{r, eval=FALSE, include=FALSE}
+
+qplot(x=Var1,y=Var2,data=melt(cor(t(def.caus.tot),use="p")),xlab="",ylab="",fill=value,geom='tile') +
+  scale_fill_gradient2(limits=c(-1,1)) +
+  coord_fixed() +
+  scale_x_discrete(limits=c(1:17)) +
+  scale_y_discrete(limits=c(1:17)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  theme(axis.text.y = element_text(angle = 45, hjust = 1)) +
+  ggtitle("Matriz de correlaciones") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+Como queremos agruparlos por correlaciones, comenzamos con la visualización de las distancias a partir de clústering jerárquico.
+
+```{r}
+#Cogemos 4 tipos de disimilaridades
+diss1 = 1 - cor.def
+diss2 = (1 - cor.def)/2
+diss3 = 1 - abs(cor.def)
+diss4 = sqrt(1 - cor.def)
+
+dist1 <- as.dist(diss1)
+dist2 <- as.dist(diss2)
+dist3 <- as.dist(diss3)
+dist4 <- as.dist(diss4)
+
+par(mfrow=c(1,1))
+
+plot(hclust(dist1,method="single"),main="Dendograma con d = 1 - Corr",axes = FALSE,ylab =NULL,hang=0.3,sub="",xlab="Método Single")
+plot(hclust(dist1,method="complete"),main="Dendograma con d = 1 - Corr",axes = FALSE,ylab =NULL,hang=0.3,sub="",xlab="Método Complete")
+plot(hclust(dist1,method="ward.D"),main="Dendograma con d = 1 - Corr",axes = FALSE,ylab =NULL,hang=0.2,sub="",xlab="Método Ward")
+
+
+```
+
+```{r}
+caus.km3<-kmeans(def.caus.tot,3)
+caus.km4<-kmeans(def.caus.tot,4)
+caus.km5<-kmeans(def.caus.tot,5)
+
+```
+
+
+```{r}
+pam.3 <- pam(dist1,k=3,diss=TRUE)
+pam.4 <- pam(dist1,k=4,diss=TRUE)
+pam.5 <- pam(dist1,k=5,diss=TRUE)
+pam.6 <- pam(dist1,k=6,diss=TRUE)
+
+
+clusplot(pam.3, color=TRUE, shade=TRUE, labels=2, lines=0,main="3 clústers")
+clusplot(pam.4, color=TRUE, shade=TRUE, labels=2, lines=0,main="4 clústers")
+clusplot(pam.5, color=TRUE, shade=TRUE, labels=2, lines=0,main="5 clústers")
+
+stats3 <- cluster.stats(dist1, pam.3$cluster)
+stats4 <- cluster.stats(dist1, pam.4$cluster)
+
+stats3$clus.avg.silwidths
+stats4$clus.avg.silwidths
+
+```
+Para visualizar correctamente, realizaremos un escalado multidimensional y un SOM(Self Organized Map)
+```{r}
+fit <- cmdscale(dist1,eig=TRUE, k=2) #Se puede realizar con cualquier otra disimilaridad
+x <- fit$points[,1]
+y <- fit$points[,2]
+plot(x, y, xlab="", ylab="",
+     main="Escalado Multidimensional", type="n")
+text(x, y, labels = c(1:ncaus), cex=.7)
+
+
+
+mort.som<-som(def.caus.tot,6,6,rlen=1000)
+xmx<-jitter(mort.som$visual$x,factor=3)
+xmy<-jitter(mort.som$visual$y,factor=3)
+par(mfrow=c(1,1),pty="s")
+plot(xmx,xmy,type="n",pch=16,xlab="x",
+     ylab="y",main="SOM Map",
+     xlim=c(-0.5,6),ylim=c(-0.5,6))
+text(xmx,xmy,c(1:17))
+
+```
+
+#Cálculo de probabilidades
+Ahora crearemos la lista de probabilidades de cada uno de los grupos causales de muerte(matriz $Q$).
+
+$$
+Q_i^j=P(\text{Fallecer de causa j a la edad i | No ha fallecido})
+$$
+
+```{r}
+
+Q <- T #Sólo por generarla
+for (k in 1:ncaus){
+  for (i in 1:nint){
+  for (j in 1:nany){
+    Q[[k]][i,j] <- D[[k]][i,j]/sup[i,j]
+  }
+  }
+  }
+Q.total <- Reduce("+",Q)
+
+plot(x=c(0,1,seq(5,95,by=5)),y=log(Q.total[,nany]),xlab = "Edad",ylab = "log(Prob. Fallecimiento)")
+for(i in 1:(nany-1)){
+  lines(c(0,1,seq(5,95,by=5)),log(Q.total[,i]),col=i)
+  }
+```
+
+#Evolución probabilidades de fallecimiento
+Dibujemos las probabilidades de muerte según su evolución en los años para el grupo de edades de 60 a 65:
+
+```{r}
+par(mfrow=c(2,2))
+for(i in 2:ncaus){ 
+  plot(x=c(1987:2014),y=as.vector(Q[[i]][14,]),main = paste("Grupo causal", i-1,"/60 a 64 años"),xlab = "Año",ylab ="Probabilidades")
+  }
+```
+
+#Evolución según la causa
+Dibujemos ahora el logaritmo de las probabilidades de fallecimiento para cada una de las causas con los datos de 2014.
+
+```{r}
+par(mfrow=c(2,3))
+for(i in 1:ncaus) {
+  plot(x=c(0,1,seq(5,95,by = 5)),y=log(Q[[i]][,nany]),ylim=c(-15,-2),main = paste("Grupo causal", i,"(2014)"),xlab = "Edad",ylab = "log(Probabilidades)")
+  }
+
+```
+
+
+
+#Unimos las causas más relacionadas
+
+```{r}
+nclust <- 4
+D.clust <- list()
+D.clust[[1]] <- Reduce("+",D[1])
+D.clust[[2]] <- Reduce("+",D[c(2,3,4,5,6,8,9,10,11,12)])
+D.clust[[3]] <- Reduce("+",D[c(7,14,15,17)])
+D.clust[[4]] <- Reduce("+",D[c(13,16)])
+
+Q.clust <- D.clust
+for (k in 1:nclust){
+  for (i in 1:nint){
+  for (j in 1:nany){
+    Q.clust[[k]][i,j] <- D.clust[[k]][i,j]/sup[i,j]
+  }
+  }
+}
+
+
+labclust <- c(1:4)
+for(i in 1:4){ labclust[i] <- paste("Clúster",i)}
+#dotchart(D.total.clust,labels=labclust, main="Distribución de defunciones de los clústers - 2014")
+
+Q.total.2 <- Reduce("+",Q.clust)
+identical(Q.total,Q.total.2)#Aunque da falso, es por codificación
+identical(sum(Q.total),sum(Q.total.2))#Sí que suman lo mismo
+#Fijarse que estos dos números son iguales pero el identical nos lo devuelve como falso
+Q.total[nint,"X2013"]==Q.total.2[nint,"X2013"]
+
+par(mfrow=c(1,1))
+for (i in 1:nclust){
+  plot(x=c(0,1,seq(5,95,by =5)),
+       y=log(Q.clust[[i]][,nany]),
+       main=paste("Cluster",i),
+       ylab="log(Probabilidades)",
+       xlab="Edad")
+}
+```
+
+
+#Lee-Carter - Introducción de datos
+
+```{r}
+
+#ages=c(0.5,1.5,seq(7.5,97.5,5) 
+demog.total<-demogdata(Q.total, sup,ages=c(0,1,seq(5,95,5)), 
+                   years=c(1987:2014), 
+                   type="mortality", name="Total", label="España")
+
+demog.total.suave <- smooth.demogdata(demog.total)
+plot(demog.total,year=2008)
+lines(demog.total.suave,year=2008,col="red")
+plot.demogdata(demog.total,plot.type="time") #each age is shown as a separate time series in a time plot
+
+tablamort <- lifetable(demog.total,type="period",years=2008,max.age=90)
+
+
+
+plot.demogdata(demog.total,plot.type="function")
+
+lines(mean(demog.total.suave),lwd=2,col=2)
+
+lines(median(demog.total.suave),lwd=2,col=2)
+
+
+```
+
+#Lee-Carter - Parámetros
+
+```{r}
+
+lc.model<- lca(demog.total,interpolate = TRUE)
+fc.total <- forecast.lca(lc.model,50,jumpchoice="fit",se = "innovdrift")
+
+plot(fc.total)
+
+plot(residuals(lc.model))
+plot(residuals(lc.model),type = "filled.contour")#Alternativo
+plot(fitted(lc.model))
+
+```
+
+
+#Lee-Carter - Simulaciones
+
+```{r}
+
+
+lc.model.total<- lca(demog.total.suave,interpolate = TRUE)
+fc.total <- forecast.lca(lc.model.total,50,jumpchoice="fit",se = "innovdrift")
+
+
+```
+
+
+#Francia
+```{r}
+
+str(fr.mort)
+
+france.fit <- fdm(fr.mort,year=2000:2006, order = 2)
+france.fcast <- forecast(france.fit, 50)
+plot(france.fcast)
+models(france.fcast)
+
+```
+
+#Española total
+```{r}
+
+defu.spa <- rev(defu.spa)
+rownames(defu.spa) <- defu.spa[,43]
+defu.spa <- defu.spa[,c(-1,-43)]
+
+
+sup.spa <- rev(sup.spa)
+rownames(sup.spa) <- sup.spa[,43]
+sup.spa <- sup.spa[,c(-1,-43)]
+colnames(sup.spa) <- colnames(defu.spa)
+
+
+q.tot.hist <- defu.spa/sup.spa
+
+demog.spain<-demogdata(q.tot.hist, sup.spa,ages=c(0:100), 
+                   years=c(1975:2015), 
+                   type="mortality", name="Total", label="Spain 1975-2015")
+
+demog.spain.smooth <- smooth.demogdata(demog.spain)
+
+spa.fit <- fdm(demog.spain.smooth, order = 2)
+plot(demog.spain.smooth)
+spa.fcast <- forecast(spa.fit, 40)
+plot(spa.fcast)
+
+
+
+```
+
+#Tasas de variación
+
+```{r}
+#Tasas de orden 1
+tasas.1 <- Q
+
+
+  for(k in 1:ncaus){
+    for (i in 1:nint){
+      for (j in 2:nany){
+        
+  tasas.1[[k]][i,j] <- (Q[[k]][i,j]-Q[[k]][i,j-1])/Q[[k]][i,j-1]
+
+    }
+    }
+  }
+ for(k in 1:ncaus){
+  tasas.1[[k]] <- tasas.1[[k]][,-1]
+ }
+
+#Tasas de orden 2
+tasas.2 <- Q
+
+
+  for(k in 1:ncaus){
+    for (i in 1:nint){
+      for (j in 3:nany){
+        
+  tasas.2[[k]][i,j] <- (Q[[k]][i,j]-Q[[k]][i,j-2])/Q[[k]][i,j-2]
+
+    }
+    }
+  }
+ for(k in 1:ncaus){
+  tasas.2[[k]] <- tasas.1[[k]][,c(-1,-2)]
+ }
+```
+
+
+#Modelización de las causas(clústers)
+
+```{r}
+#Clúster1
+demog.clust1<-demogdata(Q.clust[[1]], sup,ages=c(0,1,seq(5,95,5)), 
+                   years=c(1987:2014), 
+                   type="mortality", name="Cluster 1", label="España")
+demog.clust1.suave <- smooth.demogdata(demog.clust1)
+plot.demogdata(demog.clust1,plot.type="time") #each age is shown as a separate time series in a time plot
+
+
+#Clúster2
+demog.clust2<-demogdata(Q.clust[[2]], sup,ages=c(0,1,seq(5,95,5)), 
+                   years=c(1987:2014), 
+                   type="mortality", name="Cluster 2", label="España")
+demog.clust2.suave <- smooth.demogdata(demog.clust2)
+plot.demogdata(demog.clust2,plot.type="density") #each age is shown as a separate time series in a time plot
+
+
+
+#Clúster3
+demog.clust3<-demogdata(Q.clust[[3]], sup,ages=c(0,1,seq(5,95,5)), 
+                   years=c(1987:2014), 
+                   type="mortality", name="Cluster 3", label="España")
+demog.clust3.suave <- smooth.demogdata(demog.clust3)
+plot.demogdata(demog.clust3,plot.type="time") #each age is shown as a separate time series in a time plot
+
+
+#Clúster4
+demog.clust4<-demogdata(Q.clust[[4]], sup,ages=c(0,1,seq(5,95,5)), 
+                   years=c(1987:2014), 
+                   type="mortality", name="Cluster 4", label="España")
+demog.clust4.suave <- smooth.demogdata(demog.clust4)
+plot.demogdata(demog.clust4,plot.type="time") #each age is shown as a separate time series in a time plot
+
+par(mfrow=c(2,2))
+plot.demogdata(demog.clust1,plot.type="function",ylim=c(-14,-2),main = "Cluster 1 (1987-2014)")
+plot.demogdata(demog.clust2,plot.type="function",ylim=c(-14,-2),main = "Cluster 2 (1987-2014)")
+plot.demogdata(demog.clust3,plot.type="function",ylim=c(-14,-2),main = "Cluster 3 (1987-2014)")
+plot.demogdata(demog.clust4,plot.type="function",ylim=c(-14,-2),main = "Cluster 4 (1987-2014)")
+
+par(mfrow=c(2,2))
+plot.demogdata(demog.clust1,plot.type="time",ylim=c(-14,-2),main = "Cluster 1 (1987-2014)")
+plot.demogdata(demog.clust2,plot.type="time",ylim=c(-14,-2),main = "Cluster 2 (1987-2014)")
+plot.demogdata(demog.clust3,plot.type="time",ylim=c(-14,-2),main = "Cluster 3 (1987-2014)")
+plot.demogdata(demog.clust4,plot.type="time",ylim=c(-14,-2),main = "Cluster 4 (1987-2014)")
+
+par(mfrow=c(1,1))
+lc.model.clust1<- lca(demog.clust1.suave,interpolate = TRUE)
+fc.clust1 <- forecast.lca(lc.model.clust1,50,jumpchoice="fit",se = "innovdrift")
+plot(fc.clust1)
+
+
+lc.model.clust2<- lca(demog.clust2.suave,interpolate = TRUE)
+fc.clust2 <- forecast.lca(lc.model.clust2,50,jumpchoice="fit",se = "innovdrift")
+plot(fc.clust2)
+
+lc.model.clust3<- lca(demog.clust3.suave,interpolate = TRUE)
+fc.clust3 <- forecast.lca(lc.model.clust3,50,jumpchoice="fit",se = "innovdrift")
+plot(fc.clust3)
+
+lc.model.clust4<- lca(demog.clust4.suave,interpolate = TRUE)
+fc.clust4 <- forecast.lca(lc.model.clust4,50,jumpchoice="fit",se = "innovdrift")
+plot(fc.clust4)
+
+
+fc.total.agr <- fc.clust1$rate$`Cluster 1` +fc.clust2$rate$`Cluster 2`+fc.clust3$rate$`Cluster 3`+fc.clust4$rate$`Cluster 4`
+
+
+plot(fc.clust2$e0,xlab="Año",ylab="e_x")
+plot(log(fc.total.agr[,1]))
+
+```
+
+```{r, eval=FALSE, include=FALSE}
+
+quartz(title="PCoA",12,6)
+par(mfrow=c(2,2),oma=c(5,2,2,2),xpd=NA)
+
+plot(log(fc.total.agr[,1]),type="l",col="green3",main="Comparación predicciones en 2015",xlab="Edad",ylab="log(qx)")
+lines(log(fc.total$rate$Total[,1]),col="Red3")
+
+plot(log(fc.total.agr[,6]),type="l",col="green3",main="Comparación predicciones en 2020",xlab="Edad",ylab="log(qx)")
+lines(log(fc.total$rate$Total[,6]),col="Red3")
+
+plot(log(fc.total.agr[,11]),type="l",col="green3",main="Comparación predicciones en 2025",xlab="Edad",ylab="log(qx)")
+lines(log(fc.total$rate$Total[,11]),col="Red3")
+
+plot(log(fc.total.agr[,16]),type="l",col="green3",main="Comparación predicciones en 2030",xlab="Edad",ylab="log(qx)")
+lines(log(fc.total$rate$Total[,16]),col="Red3")
+
+legend(-45,-15,ncol=2,legend=c("Clústers agregados","Modelo total"),col=c("green3","red3"),lty=c(1,1), 
+         text.font=4,bty="n",cex=1.2)
+
+
+
+legend(10,-3,legend=c("Clústers agregados","Modelo total"),col=c("green3","red3"),lty=c(1,1), 
+         text.font=4,bty="n",cex=1.2)
+
+legend(10,-3,legend=c("Clústers agregados","Modelo total"),col=c("green3","red3"),lty=c(1,1), 
+         text.font=4,bty="n",cex=1.2)
+
+legend(10,-3,legend=c("Clústers agregados","Modelo total"),col=c("green3","red3"),lty=c(1,1), 
+         text.font=4,bty="n",cex=1.2)
+
+legend(10,-3,legend=c("Clústers agregados","Modelo total"),col=c("green3","red3"),lty=c(1,1), 
+         text.font=4,bty="n",cex=1.2)
+
+```
+
+
+```{r}
+
+
+#ax y bx
+xtable(cbind(lc.model.total$ax,lc.model.total$bx,
+             lc.model.clust1$ax,lc.model.clust1$bx,
+             lc.model.clust2$ax,lc.model.clust2$bx,
+             lc.model.clust3$ax,lc.model.clust3$bx,
+             lc.model.clust4$ax,lc.model.clust4$bx))
+#kt
+xtable(cbind(lc.model.total$kt,
+      lc.model.clust1$kt,
+      lc.model.clust2$kt,
+      lc.model.clust3$kt,
+      lc.model.clust4$kt))
+
+mean(lc.model.total$residuals$y)
+mean(lc.model.clust1$residuals$y)
+mean(lc.model.clust2$residuals$y)
+mean(lc.model.clust3$residuals$y)
+mean(lc.model.clust4$residuals$y)
+
+
+```
