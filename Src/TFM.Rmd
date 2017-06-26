@@ -30,6 +30,8 @@ require("ggplot2") #Ploteos avanzados
 require("reshape2")
 require("som") #Self organized maps
 require("xtable") #Pasar tablas a latex
+require("Hmisc") #Dotcharts
+require("car") #Boxplots
 ```
 
 
@@ -143,8 +145,18 @@ colnames(def.caus.tot) <- colnames(D[[1]])
 identical(sum(D.total),sum(def.caus.tot[,]))#Se ha realizado correctamente
 
 
-dotchart(rev(def.caus.tot[,"X2014"]),labels=c(17:1), main="Distribución de defunciones por causas - 2014")
 
+dotchart2(def.caus.tot[,"X2014"],labels=paste("C",c(1:17),sep=""), 
+          main="Defunciones por causa de fallecimiento (Cifras Absolutas) Año 2014",
+          horizontal=FALSE)
+par(mar = c(3, 4, 4, 2)) 
+Boxplot(def.caus.tot[,"X2014"],labels=paste("C",c(1:17),sep=""),
+        main="Diagrama de caja y bigotes de las causas de fallecimiento (Cifras Absolutas) Año 2014",
+        ylab="",ylim=c(0,130000),id.method="y")
+
+dotchart2(def.caus.tot[-c(2,7,8),"X2014"],labels=c(paste("C",1),paste("C",3:6),paste("C",9:17),sep=""), 
+          main="Defunciones por causa de fallecimiento (Cifras Absolutas) Año 2014",
+          horizontal=FALSE)
 
 
 Lista.causas <- matrix("a",ncaus,2)
@@ -336,10 +348,14 @@ for (k in 1:nclust){
   }
 }
 
-
+par(mfrow=c(1,1))
+D.total.clust <- cbind(sum(D.clust[[1]][,"X2014"]),sum(D.clust[[2]][,"X2014"]),
+                       sum(D.clust[[3]][,"X2014"]),sum(D.clust[[4]][,"X2014"]))
 labclust <- c(1:4)
 for(i in 1:4){ labclust[i] <- paste("Clúster",i)}
-#dotchart(D.total.clust,labels=labclust, main="Distribución de defunciones de los clústers - 2014")
+dotchart2(D.total.clust,labels=labclust, 
+          main="Distribución de defunciones de los clústers (Cifras absolutas) - 2014",
+          horizontal=FALSE)
 
 Q.total.2 <- Reduce("+",Q.clust)
 identical(Q.total,Q.total.2)#Aunque da falso, es por codificación
@@ -376,11 +392,17 @@ tablamort <- lifetable(demog.total,type="period",years=2008,max.age=90)
 
 
 
-plot.demogdata(demog.total,plot.type="function")
+plot.demogdata(demog.total,plot.type="function",xlim=c(0,85), main = "España: tantos de mortalidad (1987-2014)",xlab = "Edad",ylab="Log(qx)")
 
-lines(mean(demog.total.suave),lwd=2,col=2)
+fr.mort_age = extract.ages(demog.total,0:85,F)    
+fr.mort_age_yr = extract.years(fr.mort_age,1987:2014)    
 
-lines(median(demog.total.suave),lwd=2,col=2)
+legend(1,-0.5,legend=unique(fr.mort_age_yr$year),
+  col=rainbow(length(fr.mort_age_yr$year)*1.25), ncol=5, pch=19, cex=0.6, bty="n")
+
+#lines(mean(demog.total.suave),lwd=2,col=2)
+
+#lines(median(demog.total.suave),lwd=2,col=2)
 
 
 ```
@@ -427,7 +449,7 @@ models(france.fcast)
 
 #Española total
 ```{r}
-
+par(mfrow=c(1,1))
 defu.spa <- rev(defu.spa)
 rownames(defu.spa) <- defu.spa[,43]
 defu.spa <- defu.spa[,c(-1,-43)]
@@ -531,16 +553,24 @@ demog.clust4.suave <- smooth.demogdata(demog.clust4)
 plot.demogdata(demog.clust4,plot.type="time") #each age is shown as a separate time series in a time plot
 
 par(mfrow=c(2,2))
-plot.demogdata(demog.clust1,plot.type="function",ylim=c(-14,-2),main = "Cluster 1 (1987-2014)")
-plot.demogdata(demog.clust2,plot.type="function",ylim=c(-14,-2),main = "Cluster 2 (1987-2014)")
-plot.demogdata(demog.clust3,plot.type="function",ylim=c(-14,-2),main = "Cluster 3 (1987-2014)")
-plot.demogdata(demog.clust4,plot.type="function",ylim=c(-14,-2),main = "Cluster 4 (1987-2014)")
+plot.demogdata(demog.clust1,plot.type="function",ylim=c(-14,-2),main = "a) Cluster 1 (1987-2014)"
+               ,xlab="Edad",ylab="log(qx)",xlim=c(0,85))
+plot.demogdata(demog.clust2,plot.type="function",ylim=c(-14,-2),main = "b) Cluster 2 (1987-2014)"
+               ,xlab="Edad",ylab="log(qx)",xlim=c(0,85))
+plot.demogdata(demog.clust3,plot.type="function",ylim=c(-14,-2),main = "c) Cluster 3 (1987-2014)"
+               ,xlab="Edad",ylab="log(qx)",xlim=c(0,85))
+plot.demogdata(demog.clust4,plot.type="function",ylim=c(-14,-2),main = "d) Cluster 4 (1987-2014)"
+               ,xlab="Edad",ylab="log(qx)",xlim=c(0,85))
 
 par(mfrow=c(2,2))
-plot.demogdata(demog.clust1,plot.type="time",ylim=c(-14,-2),main = "Cluster 1 (1987-2014)")
-plot.demogdata(demog.clust2,plot.type="time",ylim=c(-14,-2),main = "Cluster 2 (1987-2014)")
-plot.demogdata(demog.clust3,plot.type="time",ylim=c(-14,-2),main = "Cluster 3 (1987-2014)")
-plot.demogdata(demog.clust4,plot.type="time",ylim=c(-14,-2),main = "Cluster 4 (1987-2014)")
+plot.demogdata(demog.clust1,plot.type="time",ylim=c(-14,-2),main = "a) Cluster 1 (1987-2014)"
+               ,xlab="Año",ylab="log(qx)")
+plot.demogdata(demog.clust2,plot.type="time",ylim=c(-14,-2),main = "b) Cluster 2 (1987-2014)"
+               ,xlab="Año",ylab="log(qx)")
+plot.demogdata(demog.clust3,plot.type="time",ylim=c(-14,-2),main = "c) Cluster 3 (1987-2014)"
+               ,xlab="Año",ylab="log(qx)")
+plot.demogdata(demog.clust4,plot.type="time",ylim=c(-14,-2),main = "d) Cluster 4 (1987-2014)"
+               ,xlab="Año",ylab="log(qx)")
 
 par(mfrow=c(1,1))
 lc.model.clust1<- lca(demog.clust1.suave,interpolate = TRUE)
@@ -563,6 +593,7 @@ plot(fc.clust4)
 
 fc.total.agr <- fc.clust1$rate$`Cluster 1` +fc.clust2$rate$`Cluster 2`+fc.clust3$rate$`Cluster 3`+fc.clust4$rate$`Cluster 4`
 
+fc.clust2$e0
 
 plot(fc.clust2$e0,xlab="Año",ylab="e_x")
 plot(log(fc.total.agr[,1]))
@@ -608,25 +639,28 @@ legend(10,-3,legend=c("Clústers agregados","Modelo total"),col=c("green3","red3
 
 ```{r}
 
-
 #ax y bx
-xtable(cbind(lc.model.total$ax,lc.model.total$bx,
+par.edad <- cbind(lc.model.total$ax,lc.model.total$bx,
              lc.model.clust1$ax,lc.model.clust1$bx,
              lc.model.clust2$ax,lc.model.clust2$bx,
              lc.model.clust3$ax,lc.model.clust3$bx,
-             lc.model.clust4$ax,lc.model.clust4$bx))
+             lc.model.clust4$ax,lc.model.clust4$bx)
+colnames(par.edad)=c("ax_total","bx_total","ax_clust1","bx_clust1"
+                      ,"ax_clust2","bx_clust2","ax_clust3","bx_clust3","ax_clust4","bx_clust4")
+
+write.csv(par.edad,"Parámetros_edad.csv")
+
+
 #kt
-xtable(cbind(lc.model.total$kt,
+
+par.tiempo <- cbind(lc.model.total$kt,
       lc.model.clust1$kt,
       lc.model.clust2$kt,
       lc.model.clust3$kt,
-      lc.model.clust4$kt))
+      lc.model.clust4$kt)
+colnames(par.tiempo)=c("kt_total","kt_clust1","kt_clust2","kt_clust3","kt_clust4")
+rownames(par.tiempo) <- c(1987:2014)
+write.csv(par.tiempo,"Parámetros_tiempo.csv")
 
-mean(lc.model.total$residuals$y)
-mean(lc.model.clust1$residuals$y)
-mean(lc.model.clust2$residuals$y)
-mean(lc.model.clust3$residuals$y)
-mean(lc.model.clust4$residuals$y)
-
-
+xtable(par.tiempo)
 ```
