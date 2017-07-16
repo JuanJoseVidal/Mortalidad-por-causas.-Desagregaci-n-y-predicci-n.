@@ -154,7 +154,7 @@ Boxplot(def.caus.tot[,"X2014"],labels=paste("C",c(1:17),sep=""),
         main="Diagrama de caja y bigotes de las causas de fallecimiento (Cifras Absolutas) Año 2014",
         ylab="",ylim=c(0,130000),id.method="y")
 
-dotchart2(def.caus.tot[-c(2,7,8),"X2014"],labels=c(paste("C",1),paste("C",3:6),paste("C",9:17),sep=""), 
+dotchart2(def.caus.tot[-c(2,7),"X2014"],labels=c(paste("C",1),paste("C",3:6),paste("C",8:17),sep=""), 
           main="Defunciones por causa de fallecimiento (Cifras Absolutas) Año 2014",
           horizontal=FALSE)
 
@@ -551,7 +551,7 @@ demog.clust4<-demogdata(Q.clust[[4]], sup,ages=c(0,1,seq(5,95,5)),
                    type="mortality", name="Cluster 4", label="España")
 demog.clust4.suave <- smooth.demogdata(demog.clust4)
 plot.demogdata(demog.clust4,plot.type="time") #each age is shown as a separate time series in a time plot
-
+dev.off()
 par(mfrow=c(2,2))
 plot.demogdata(demog.clust1,plot.type="function",ylim=c(-14,-2),main = "a) Cluster 1 (1987-2014)"
                ,xlab="Edad",ylab="log(qx)",xlim=c(0,85))
@@ -564,13 +564,13 @@ plot.demogdata(demog.clust4,plot.type="function",ylim=c(-14,-2),main = "d) Clust
 
 par(mfrow=c(2,2))
 plot.demogdata(demog.clust1,plot.type="time",ylim=c(-14,-2),main = "a) Cluster 1 (1987-2014)"
-               ,xlab="Año",ylab="log(qx)")
+               ,xlab="Año",ylab="log(qx)",ages = c(0:85))
 plot.demogdata(demog.clust2,plot.type="time",ylim=c(-14,-2),main = "b) Cluster 2 (1987-2014)"
-               ,xlab="Año",ylab="log(qx)")
+               ,xlab="Año",ylab="log(qx)",ages = c(0:85))
 plot.demogdata(demog.clust3,plot.type="time",ylim=c(-14,-2),main = "c) Cluster 3 (1987-2014)"
-               ,xlab="Año",ylab="log(qx)")
+               ,xlab="Año",ylab="log(qx)",ages = c(0:85))
 plot.demogdata(demog.clust4,plot.type="time",ylim=c(-14,-2),main = "d) Cluster 4 (1987-2014)"
-               ,xlab="Año",ylab="log(qx)")
+               ,xlab="Año",ylab="log(qx)",ages = c(0:85))
 
 par(mfrow=c(1,1))
 lc.model.clust1<- lca(demog.clust1.suave,interpolate = TRUE)
@@ -608,31 +608,30 @@ par(mfrow=c(2,2),oma=c(5,2,2,2),xpd=NA)
 plot(log(fc.total.agr[,1]),type="l",col="green3",main="Comparación predicciones en 2015",xlab="Edad",ylab="log(qx)")
 lines(log(fc.total$rate$Total[,1]),col="Red3")
 
+legend(10,-3,legend=c("Clústers agregados","Modelo sin desagregar"),col=c("green3","red3"),lty=c(1,1), 
+         text.font=4,bty="n",cex=1.2)
+
+
 plot(log(fc.total.agr[,6]),type="l",col="green3",main="Comparación predicciones en 2020",xlab="Edad",ylab="log(qx)")
 lines(log(fc.total$rate$Total[,6]),col="Red3")
+
+legend(10,-3,legend=c("Clústers agregados","Modelo sin desagregar"),col=c("green3","red3"),lty=c(1,1), 
+         text.font=4,bty="n",cex=1.2)
 
 plot(log(fc.total.agr[,11]),type="l",col="green3",main="Comparación predicciones en 2025",xlab="Edad",ylab="log(qx)")
 lines(log(fc.total$rate$Total[,11]),col="Red3")
 
+legend(10,-3,legend=c("Clústers agregados","Modelo sin desagregar"),col=c("green3","red3"),lty=c(1,1), 
+         text.font=4,bty="n",cex=1.2)
+
 plot(log(fc.total.agr[,16]),type="l",col="green3",main="Comparación predicciones en 2030",xlab="Edad",ylab="log(qx)")
 lines(log(fc.total$rate$Total[,16]),col="Red3")
 
-legend(-45,-15,ncol=2,legend=c("Clústers agregados","Modelo total"),col=c("green3","red3"),lty=c(1,1), 
+
+legend(10,-3,legend=c("Clústers agregados","Modelo sin desagregar"),col=c("green3","red3"),lty=c(1,1), 
          text.font=4,bty="n",cex=1.2)
 
 
-
-legend(10,-3,legend=c("Clústers agregados","Modelo total"),col=c("green3","red3"),lty=c(1,1), 
-         text.font=4,bty="n",cex=1.2)
-
-legend(10,-3,legend=c("Clústers agregados","Modelo total"),col=c("green3","red3"),lty=c(1,1), 
-         text.font=4,bty="n",cex=1.2)
-
-legend(10,-3,legend=c("Clústers agregados","Modelo total"),col=c("green3","red3"),lty=c(1,1), 
-         text.font=4,bty="n",cex=1.2)
-
-legend(10,-3,legend=c("Clústers agregados","Modelo total"),col=c("green3","red3"),lty=c(1,1), 
-         text.font=4,bty="n",cex=1.2)
 
 ```
 
@@ -664,3 +663,152 @@ write.csv(par.tiempo,"Parámetros_tiempo.csv")
 
 xtable(par.tiempo)
 ```
+
+```{r}
+
+
+p.clust <- D.total.clust/sum(D.total.clust)
+
+fc.total$e0
+fc.clust1$e0
+
+e0.clust <- cbind(fc.clust1$e0,fc.clust2$e0,fc.clust3$e0,fc.clust4$e0)
+
+
+plot(e0.clust[,1],ylim=c(0,1500), main="Predicción de las esperanzas de vida para los distintos grupos de causas",xlab="Año",ylab="Esperanza de vida al nacer")
+lines(e0.clust[,2],col="red3")
+lines(e0.clust[,3],col="skyblue")
+lines(e0.clust[,4],col="yellow3")
+
+legend(2045,1450,legend=c("Cluster 1","Cluster 2","Cluster 3","Cluster 4")
+       ,col=c("black","red3","skyblue","yellow3"),lty=c(1,1), 
+         text.font=4,bty="n",cex=0.7)
+
+
+xtable(e0.clust)
+
+```
+
+```{r}
+
+plot(demog.clust1$age, log(demog.clust1$rate$`Cluster 1`[,"2014"]),type="l")
+lines(demog.clust2$age,log(demog.clust2$rate$`Cluster 2`[,"2014"]))
+lines(demog.clust3$age,log(demog.clust3$rate$`Cluster 3`[,"2014"]))
+lines(demog.clust4$age,log(demog.clust4$rate$`Cluster 4`[,"2014"]))
+
+plot(log(Q$D1$X2014),type="l")
+lines(log(Q$D2$X2014))
+lines(log(Q$D3$X2014))
+lines(log(Q$D4$X2014))
+lines(log(Q$D5$X2014))
+lines(log(Q$D6$X2014))
+lines(log(Q$D7$X2014))
+lines(log(Q$D8$X2014))
+lines(log(Q$D9$X2014))
+lines(log(Q$D10$X2014))
+lines(log(Q$D11$X2014))
+lines(log(Q$D12$X2014))
+lines(log(Q$D13$X2014))
+lines(log(Q$D14$X2014))
+lines(log(Q$D15$X2014))
+lines(log(Q$D16$X2014))
+lines(log(Q$D17$X2014))
+
+
+q.2014 <- cbind(Q$D1$X2014,
+Q$D2$X2014,
+Q$D3$X2014,
+Q$D4$X2014,
+Q$D5$X2014,
+Q$D6$X2014,
+Q$D7$X2014,
+Q$D8$X2014,
+Q$D9$X2014,
+Q$D10$X2014,
+Q$D11$X2014,
+Q$D12$X2014,
+Q$D13$X2014,
+Q$D14$X2014,
+Q$D15$X2014,
+Q$D16$X2014,
+Q$D17$X2014)
+
+
+apply(q.2014,1,lines)
+
+
+#Podria traure la matriu d'aquestes dades i veure màxims, mitjana, mitja i mínims per a cada grup d'edat.
+```
+
+
+```{r}
+
+death.2015 <- defu.spa$X2015/sup.spa$X2015
+predict.death.2015 <- fc.total.agr[,1]
+fc.total$rate$Total[,1]
+
+plot(log(death.2015),xlim=c(0,85),
+     xlab="Edad",
+     ylab="Tasa de mortalidad (escala logarítmica)",
+     main="Comparación de tasas de mortalidad reales y predecidas con el modelo agregado - 2015")
+lines(log(predict.death.2015), col="green3",xlim=c(0,85))
+lines(log(fc.total$rate$Total[,1]), col="red3",xlim=c(0,85))
+legend(0,-2,legend=c("Tasa real","Predicción sin desagregar","Predicción con clusters")
+       ,col=c("black","red3","green3"),lty=c(1,1), 
+         text.font=4,bty="n",cex=0.8)
+
+
+```
+
+```{r}
+q.clust.2014 <- cbind(demog.clust1$rate$`Cluster 1`[,"2014"],
+      demog.clust2$rate$`Cluster 2`[,"2014"],
+      demog.clust3$rate$`Cluster 3`[,"2014"],
+      demog.clust4$rate$`Cluster 4`[,"2014"])
+
+plot(x=c(0,1,seq(5,95,by =5)),y=apply(log(q.clust.2014),1,max),
+     type="l",
+     ylim=c(-14,-2),
+     xlab="Edad",
+     ylab="Tasa de mortalidad",
+     xlim=c(0,85),
+     main="Mínimo y máximo de todas los clusters")
+lines(x=c(0,1,seq(5,95,by =5)),y=apply(log(q.clust.2014),1,min))
+
+```
+
+```{r}
+
+par(mfrow=c(1,3))
+
+plot(par.edad[,3], type="l",main="ax Cluster 1",xlab="Edad",ylab="ax",ylim=c(-12,-3))
+plot(par.edad[,4], type="l",main="bx Cluster 1",xlab="Edad",ylab="bx",ylim=c(-0.6,1))
+plot(par.tiempo[,2], type="l",main="kt Cluster 1",xlab="Año",ylab="kt",ylim=c(-150,40))
+
+plot(par.edad[,5], type="l",main="ax Cluster 2",xlab="Edad",ylab="ax",ylim=c(-12,-3))
+plot(par.edad[,6], type="l",main="bx Cluster 2",xlab="Edad",ylab="bx",ylim=c(-0.6,1))
+plot(par.tiempo[,3], type="l",main="kt Cluster 2",xlab="Año",ylab="kt",ylim=c(-150,40))
+
+plot(par.edad[,7], type="l",main="ax Cluster 3",xlab="Edad",ylab="ax",ylim=c(-12,-3))
+plot(par.edad[,8], type="l",main="bx Cluster 3",xlab="Edad",ylab="bx",ylim=c(-0.6,1))
+plot(par.tiempo[,4], type="l",main="kt Cluster 3",xlab="Año",ylab="kt",ylim=c(-150,40))
+
+plot(par.edad[,9], type="l",main="ax Cluster 4",xlab="Edad",ylab="ax",ylim=c(-12,-3))
+plot(par.edad[,10], type="l",main="bx Cluster 4",xlab="Edad",ylab="bx",ylim=c(-0.6,1))
+plot(par.tiempo[,5], type="l",main="kt Cluster 4",xlab="Año",ylab="kt",ylim=c(-150,40))
+
+
+plot(par.edad[,3],type="l")
+lines(par.edad[,5])
+lines(par.edad[,7])
+lines(par.edad[,9])
+
+plot(par.edad[,4],type="l")
+lines(par.edad[,6])
+lines(par.edad[,8])
+lines(par.edad[,10])
+
+
+```
+
+
